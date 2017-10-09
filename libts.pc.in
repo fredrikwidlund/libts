@@ -1,0 +1,10 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=${prefix}/include
+
+Name: libts
+Description: MPEG TS library
+Version: @VERSION@
+Libs: -L${libdir} -ldynamic
+Cflags: -I${includedir} -flto -fuse-linker-plugin
