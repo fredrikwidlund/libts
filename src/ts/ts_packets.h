@@ -4,7 +4,7 @@
 typedef struct ts_packets ts_packets;
 struct ts_packets
 {
-  list list;
+  list     list;
 };
 
 void     ts_packets_construct(ts_packets *);

@@ -62,11 +62,11 @@ ssize_t ts_packets_unpack(ts_packets *packets, stream *s)
         abort();
       ts_packet_construct(packet);
       n = ts_packet_unpack(packet, s);
-      if (n == -1)
+      if (n <= 0)
         {
           ts_packet_destruct(packet);
           free(packet);
-          return -1;
+          break;
         }
       list_push_back(ts_packets_list(packets), &packet, sizeof packet);
       count ++;

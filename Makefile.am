@@ -11,13 +11,17 @@ SOURCE_FILES = \
 src/ts/ts_ebp.c \
 src/ts/ts_adaptation_field.c \
 src/ts/ts_packet.c \
-src/ts/ts_packets.c
+src/ts/ts_packets.c \
+src/ts/ts_unit.c \
+src/ts/ts_units.c
 
 HEADER_FILES = \
 src/ts/ts_ebp.h \
 src/ts/ts_adaptation_field.h \
 src/ts/ts_packet.h \
-src/ts/ts_packets.h
+src/ts/ts_packets.h \
+src/ts/ts_unit.h \
+src/ts/ts_units.h
 
 AUTOMAKE_OPTIONS = subdir-objects
 lib_LTLIBRARIES= libts.la

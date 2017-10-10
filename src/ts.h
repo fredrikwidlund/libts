@@ -14,6 +14,8 @@ extern "C" {
 #include <ts/ts_adaptation_field.h>
 #include <ts/ts_packet.h>
 #include <ts/ts_packets.h>
+#include <ts/ts_unit.h>
+#include <ts/ts_units.h>
 
 #ifdef __cplusplus
 }
