@@ -1,10 +1,18 @@
 #ifndef TS_PACKETS_H_INCLUDED
 #define TS_PACKETS_H_INCLUDED
 
+typedef struct ts_packets_counter ts_packets_counter;
+struct ts_packets_counter
+{
+  int    pid;
+  int    value;
+};
+
 typedef struct ts_packets ts_packets;
 struct ts_packets
 {
-  list     list;
+  list   list;
+  vector counters;
 };
 
 void     ts_packets_construct(ts_packets *);

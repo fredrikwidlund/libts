@@ -9,6 +9,20 @@
 #include "ts_packet.h"
 #include "ts_packets.h"
 
+static ts_packets_counter *ts_packets_lookup_counter(ts_packets *packets, int pid)
+{
+  ts_packets_counter *counters;
+  size_t i, size;
+
+  counters = vector_data(&packets->counters);
+  size = vector_size(&packets->counters);
+  for (i = 0; i < size; i ++)
+    if (counters[i].pid == pid)
+      return &counters[i];
+  vector_push_back(&packets->counters, (ts_packets_counter[]){{.pid = pid}});
+  return vector_at(&packets->counters, i);
+}
+
 static void ts_packets_list_release(void *object)
 {
   ts_packet *p = *(ts_packet **) object;
@@ -20,11 +34,13 @@ static void ts_packets_list_release(void *object)
 void ts_packets_construct(ts_packets *packets)
 {
   list_construct(&packets->list);
+  vector_construct(&packets->counters, sizeof (struct ts_packets_counter));
 }
 
 void ts_packets_destruct(ts_packets *packets)
 {
   list_destruct(&packets->list, ts_packets_list_release);
+  vector_destruct(&packets->counters);
 }
 
 list *ts_packets_list(ts_packets *packets)
@@ -34,13 +50,18 @@ list *ts_packets_list(ts_packets *packets)
 
 ssize_t ts_packets_pack(ts_packets *packets, stream *s)
 {
-  ts_packet **i;
+  ts_packet **p;
   ssize_t n, count;
+  ts_packets_counter *counter;
 
   count = 0;
-  list_foreach(ts_packets_list(packets), i)
+  list_foreach(ts_packets_list(packets), p)
     {
-      n = ts_packet_pack(*i, s);
+      counter = ts_packets_lookup_counter(packets, (*p)->pid);
+      (*p)->continuity_counter = counter->value;
+      if ((*p)->adaptation_field_control & 0x01)
+        counter->value ++;
+      n = ts_packet_pack(*p, s);
       if (n == -1)
         return -1;
       count ++;

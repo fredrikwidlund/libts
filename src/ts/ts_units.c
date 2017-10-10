@@ -33,16 +33,16 @@ list *ts_units_list(ts_units *units)
 {
   return &units->list;
 }
-/*
-ssize_t ts_units_pack(ts_units *units, stream *s)
+
+ssize_t ts_units_pack(ts_units *units, ts_packets *packets)
 {
-  ts_unit **i;
+  ts_unit **u;
   ssize_t n, count;
 
   count = 0;
-  list_foreach(ts_units_list(units), i)
+  list_foreach(ts_units_list(units), u)
     {
-      n = ts_unit_pack(*i, s);
+      n = ts_unit_pack(*u, packets);
       if (n == -1)
         return -1;
       count ++;
@@ -50,7 +50,6 @@ ssize_t ts_units_pack(ts_units *units, stream *s)
 
   return count;
 }
-*/
 
 ssize_t ts_units_unpack(ts_units *units, ts_packets *packets)
 {
@@ -63,7 +62,6 @@ ssize_t ts_units_unpack(ts_units *units, ts_packets *packets)
   list_construct(&incomplete);
   list_foreach(ts_packets_list(packets), p)
     {
-      fprintf(stderr, "%p\n", (void *) p);
       u_found = NULL;
       list_foreach(&incomplete, u)
         if ((*p)->pid == (*u)->pid)
@@ -77,6 +75,11 @@ ssize_t ts_units_unpack(ts_units *units, ts_packets *packets)
           if (!unit)
             abort();
           ts_unit_construct(unit, (*p)->pid, (*p)->adaptation_field.random_access_indicator);
+          if ((*p)->adaptation_field.pcr_flag)
+            {
+              unit->pcr_flag = 1;
+              unit->pcr = (*p)->adaptation_field.pcr;
+            }
           list_push_back(&incomplete, &unit, sizeof unit);
           list_push_back(&units->list, &unit, sizeof unit);
           u_found = &unit;
@@ -84,12 +87,11 @@ ssize_t ts_units_unpack(ts_units *units, ts_packets *packets)
         }
 
       if (u_found)
-        (void) ts_unit_pack(*u_found, *p);
+        (void) ts_unit_unpack(*u_found, *p);
     }
 
   list_destruct(&incomplete, NULL);
 
-  fprintf(stderr, "count %ld\n", count);
   return count;
 }
 
@@ -111,21 +113,19 @@ ssize_t ts_units_load(ts_units *units, char *path)
   return n;
 }
 
-/*
 ssize_t ts_units_save(ts_units *units, char *path)
 {
-  buffer b;
-  stream s;
+  ts_packets packets;
   ssize_t n;
 
-  buffer_construct(&b);
-  stream_construct_buffer(&s, &b);
-  n = ts_units_pack(units, &s);
-  if (n >= 0)
-    buffer_save(&b, path);
-  stream_destruct(&s);
-  buffer_destruct(&b);
-
+  ts_packets_construct(&packets);
+  n = ts_units_pack(units, &packets);
+  if (n == -1)
+    {
+      ts_packets_destruct(&packets);
+      return -1;
+    }
+  n = ts_packets_save(&packets, path);
+  ts_packets_destruct(&packets);
   return n;
 }
-*/

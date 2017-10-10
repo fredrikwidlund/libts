@@ -31,7 +31,9 @@ ssize_t ts_packet_pack(ts_packet *packet, stream *stream)
 {
   ssize_t n;
 
-  if (!packet->payload_size)
+  if (packet->payload_size)
+    packet->adaptation_field_control |= 0x01;
+  else
     packet->adaptation_field_control &= ~0x01;
 
   if (ts_packet_size(packet) < 188)
