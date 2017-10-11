@@ -16,6 +16,7 @@ struct ts_pes
   uint64_t  dts;
   void     *data;
   size_t    size;
+  unsigned  random_access_indicator:1;
 };
 
 void    ts_pes_construct(ts_pes *);

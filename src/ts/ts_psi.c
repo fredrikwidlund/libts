@@ -82,7 +82,7 @@ static uint32_t ts_psi_crc(uint8_t *data, size_t size)
   size_t i;
 
   for (i = 0; i < size; i ++)
-    crc = crc << 8 ^ ts_psi_crc_table[crc >> 24] ^ data[i];
+    crc = crc << 8 ^ ts_psi_crc_table[crc >> 24 ^ data[i]];
 
   return crc;
 }
@@ -106,11 +106,6 @@ ssize_t ts_psi_construct_stream(ts_psi *psi, stream *stream)
 void ts_psi_destruct(ts_psi *psi)
 {
   *psi = (ts_psi) {0};
-}
-
-static void dump(uint8_t data, size_t size)
-{
-  xxx;
 }
 
 ssize_t ts_psi_pack_stream(ts_psi *psi, stream *s, stream *data)
@@ -141,8 +136,8 @@ ssize_t ts_psi_pack_stream(ts_psi *psi, stream *s, stream *data)
 
   crc = ts_psi_crc((uint8_t *) stream_data(s) + size, stream_size(s) - size);
   stream_write32(s, crc);
-
-  fprintf(stderr, "out %08x\n", crc);
+  while ((stream_size(s) + 4) % 188)
+    stream_write8(s, 0xff);
 
   return stream_valid(s) ? 1 : -1;
 }
@@ -165,14 +160,12 @@ ssize_t ts_psi_unpack_stream(ts_psi *psi, stream *stream)
       stream_read_bits(v, 16, 4, 2) != 0x00)
     return -1;
   psi->section_length = stream_read_bits(v, 16, 6, 10);
-
   if (psi->section_length < 9)
     return -1;
   if (stream_size(stream) < psi->section_length)
     return 0;
 
   psi->id_extension = stream_read16(stream);
-
   v = stream_read8(stream);
   if (stream_read_bits(v, 8, 0, 2) != 0x03)
     return -1;

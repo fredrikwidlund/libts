@@ -23,6 +23,14 @@ static void ts_stream_streams_release(void *object)
   free(pes_stream);
 }
 
+static void ts_stream_pes_packets_release(void *object)
+{
+  ts_pes *pes = *(ts_pes **) object;
+
+  ts_pes_destruct(pes);
+  free(pes);
+}
+
 void ts_stream_pes_construct(ts_stream_pes *pes_stream)
 {
   *pes_stream = (ts_stream_pes) {0};
@@ -31,6 +39,7 @@ void ts_stream_pes_construct(ts_stream_pes *pes_stream)
 
 void ts_stream_pes_destruct(ts_stream_pes *pes_stream)
 {
+  list_destruct(&pes_stream->packets, ts_stream_pes_packets_release);
   *pes_stream = (ts_stream_pes) {0};
 }
 
@@ -130,6 +139,47 @@ ssize_t ts_stream_unpack_pat(ts_stream *ts_stream, ts_units *units)
   return 1;
 }
 
+ssize_t ts_stream_pack_pmt(ts_stream *ts_stream, ts_units *units)
+{
+  ts_pmt pmt;
+  ts_pmt_stream pmts;
+  ts_stream_pes **p;
+  ts_unit *unit;
+  ssize_t n;
+
+  if (!ts_stream->program_pid)
+    return -1;
+
+  ts_pmt_construct(&pmt);
+  pmt.id = 0x02;
+  pmt.id_extension = 1;
+  pmt.version = 0;
+  pmt.pcr_pid = ts_stream->pcr_pid ? ts_stream->pcr_pid : 0x1fff;
+  list_foreach(&ts_stream->streams, p)
+    {
+      pmts.stream_type = (*p)->type;
+      pmts.elementary_pid = (*p)->pid;
+      list_push_back(&pmt.streams, &pmts, sizeof pmts);
+    }
+
+  unit = malloc(sizeof *unit);
+  if (!unit)
+    abort();
+  ts_unit_construct(unit, ts_stream->program_pid, 0);
+  n = ts_pmt_pack_buffer(&pmt, &unit->data);
+  ts_pmt_destruct(&pmt);
+  if (n == -1)
+    {
+      ts_unit_destruct(unit);
+      free(unit);
+      return -1;
+    }
+
+  list_push_back(ts_units_list(units), &unit, sizeof unit);
+
+  return 1;
+}
+
 ssize_t ts_stream_unpack_pmt(ts_stream *ts_stream, ts_units *units)
 {
   ts_unit **u;
@@ -147,17 +197,66 @@ ssize_t ts_stream_unpack_pmt(ts_stream *ts_stream, ts_units *units)
         ts_pmt_construct(&pmt);
         n = ts_pmt_unpack_buffer(&pmt, &(*u)->data);
         if (n == -1)
-          return -1;
+          {
+            ts_pmt_destruct(&pmt);
+            return -1;
+          }
+        if (!ts_stream->pcr_pid)
+          ts_stream->pcr_pid = pmt.pcr_pid;
+        if (ts_stream->pcr_pid != pmt.pcr_pid)
+          {
+            ts_pmt_destruct(&pmt);
+            return -1;
+          }
         list_foreach(&pmt.streams, s)
           {
             pes_stream = ts_stream_create(ts_stream, s->elementary_pid);
             if (!pes_stream->type)
               pes_stream->type = s->stream_type;
             if (pes_stream->type != s->stream_type)
-              return -1;
+              {
+                ts_pmt_destruct(&pmt);
+                return -1;
+              }
           }
         ts_pmt_destruct(&pmt);
       }
+
+  return 1;
+}
+
+ssize_t ts_stream_pack_pes(ts_stream *ts_stream, ts_units *units)
+{
+  ts_stream_pes **p;
+  ts_pes **packet;
+  ts_unit *unit;
+  ssize_t n, count;
+
+  list_foreach(&ts_stream->streams, p)
+    {
+      count = 0;
+      list_foreach(&(*p)->packets, packet)
+        {
+          unit = malloc(sizeof *unit);
+          if (!unit)
+            abort();
+          ts_unit_construct(unit, (*p)->pid, (*packet)->random_access_indicator);
+          if (ts_stream->pcr_pid == (*p)->pid && count == 0)
+            {
+              unit->pcr_flag = 1;
+              unit->pcr = (*packet)->pts * 300;
+            }
+          n = ts_pes_pack_buffer(*packet, &unit->data);
+          if (n == -1)
+            {
+              ts_unit_destruct(unit);
+              free(unit);
+              return -1;
+            }
+          list_push_back(ts_units_list(units), &unit, sizeof unit);
+          count ++;
+        }
+    }
 
   return 1;
 }
@@ -186,6 +285,7 @@ ssize_t ts_stream_unpack_pes(ts_stream *ts_stream, ts_units *units)
                   free(pes);
                   return -1;
                 }
+              pes->random_access_indicator = (*u)->random_access_indicator;
               list_push_back(&(*p)->packets, &pes, sizeof pes);
             }
         }
@@ -211,12 +311,10 @@ ssize_t ts_stream_pack(ts_stream *ts_stream, ts_units *units)
   ssize_t n;
 
   n = ts_stream_pack_pat(ts_stream, units);
-  /*
   if (n >= 0)
     n = ts_stream_pack_pmt(ts_stream, units);
   if (n >= 0)
     n = ts_stream_pack_pes(ts_stream, units);
-  */
   return n;
 }
 

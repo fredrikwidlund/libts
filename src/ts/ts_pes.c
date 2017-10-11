@@ -10,15 +10,15 @@
 static ssize_t ts_pes_ts_pack(uint64_t *t, stream *s, int pts, int dts)
 {
   stream_write8(s,
-		stream_write_bits(pts, 8, 2, 1) |
-		stream_write_bits(dts, 8, 3, 1) |
-		stream_write_bits(*t >> 30, 8, 4, 3) |
-		stream_write_bits(1, 8, 7, 1));
+                stream_write_bits(pts, 8, 2, 1) |
+                stream_write_bits(dts, 8, 3, 1) |
+                stream_write_bits(*t >> 30, 8, 4, 3) |
+                stream_write_bits(1, 8, 7, 1));
   stream_write32(s,
-		 stream_write_bits(*t >> 15, 32, 0, 15) |
-		 stream_write_bits(1, 32, 15, 1) |
-		 stream_write_bits(*t, 32, 16, 15) |
-		 stream_write_bits(*t, 32, 31, 1));
+                 stream_write_bits(*t >> 15, 32, 0, 15) |
+                 stream_write_bits(1, 32, 15, 1) |
+                 stream_write_bits(*t, 32, 16, 15) |
+                 stream_write_bits(*t, 32, 31, 1));
   return stream_valid(s) ? 1 : -1;
 }
 
@@ -70,14 +70,14 @@ static size_t ts_pes_header_size(ts_pes *pes)
 static ssize_t ts_pes_header_pack_stream(ts_pes *pes, stream *s)
 {
   stream_write16(s,
-		 stream_write_bits(0x02, 16, 0, 2) |
-		 stream_write_bits(0x01, 16, 5, 1) |
-		 stream_write_bits(pes->pts_indicator, 16, 8, 1) |
-		 stream_write_bits(pes->dts_indicator, 16, 9, 1));
+                 stream_write_bits(0x02, 16, 0, 2) |
+                 stream_write_bits(0x01, 16, 5, 1) |
+                 stream_write_bits(pes->pts_indicator, 16, 8, 1) |
+                 stream_write_bits(pes->dts_indicator, 16, 9, 1));
   stream_write8(s, ts_pes_header_size(pes) - 3);
   if (pes->pts_indicator)
     ts_pes_ts_pack(&pes->pts, s, pes->pts_indicator, pes->dts_indicator);
-  if (pes->pts_indicator)
+  if (pes->dts_indicator)
     ts_pes_ts_pack(&pes->dts, s, pes->pts_indicator, pes->dts_indicator);
   return stream_valid(s) ? 1 : -1;
 }
@@ -87,12 +87,14 @@ ssize_t ts_pes_pack_stream(ts_pes *pes, stream *s)
   int len;
   ssize_t n;
 
-  stream_write32(s, 0x00000100 | pes->stream_id);
+  stream_write32(s,
+                 stream_write_bits(1, 32, 23, 1) |
+                 stream_write_bits(pes->stream_id, 32, 24, 8));
   len = ts_pes_header_size(pes) + pes->size;
   if (len >= 65536)
     {
       if (pes->stream_id < 0xe0 || pes->stream_id >= 0xf0)
-	return -1;
+        return -1;
       len = 0;
     }
   stream_write16(s, len);
@@ -100,7 +102,7 @@ ssize_t ts_pes_pack_stream(ts_pes *pes, stream *s)
     {
       n = ts_pes_header_pack_stream(pes, s);
       if (n == -1)
-	return -1;
+        return -1;
     }
   stream_write(s, pes->data, pes->size);
   return stream_valid(s) ? 1 : -1;
@@ -191,7 +193,7 @@ ssize_t ts_pes_unpack_buffer(ts_pes *pes, buffer *buffer)
 void ts_pes_debug(ts_pes *pes, FILE *f)
 {
   (void) fprintf(f, "[pes] stream id 0x%02x, size %lu",
-		 pes->stream_id, pes->size);
+                 pes->stream_id, pes->size);
   if (pes->pts_indicator)
     (void) fprintf(f, ", pts %lu", pes->pts);
   if (pes->pts_indicator)

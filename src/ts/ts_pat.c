@@ -70,7 +70,6 @@ ssize_t ts_pat_pack_buffer(ts_pat *pat, buffer *buffer)
   stream_destruct(&stream);
 
   return n;
-
 }
 
 ssize_t ts_pat_unpack_stream(ts_pat *pat, stream *stream)
@@ -95,9 +94,8 @@ ssize_t ts_pat_unpack_stream(ts_pat *pat, stream *stream)
     return -1;
   pat->program_number = stream_read_bits(v, 32, 0, 16);
   pat->program_pid = stream_read_bits(v, 32, 19, 13);
-  v = stream_read32(stream);
-  fprintf(stderr, "in %08x\n", v);
 
+  (void) stream_read32(stream);
   if (pat->id != 0x00)
     return -1;
 

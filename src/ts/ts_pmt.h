@@ -21,6 +21,8 @@ struct ts_pmt
 void    ts_pmt_construct(ts_pmt *);
 ssize_t ts_pmt_construct_buffer(ts_pmt *, buffer *);
 void    ts_pmt_destruct(ts_pmt *);
+ssize_t ts_pmt_pack_stream(ts_pmt *, stream *);
+ssize_t ts_pmt_pack_buffer(ts_pmt *, buffer *);
 ssize_t ts_pmt_unpack_stream(ts_pmt *, stream *);
 ssize_t ts_pmt_unpack_buffer(ts_pmt *, buffer *);
 void    ts_pmt_debug(ts_pmt *, FILE *);

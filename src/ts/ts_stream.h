@@ -24,6 +24,11 @@ void           ts_stream_construct(ts_stream *);
 void           ts_stream_destruct(ts_stream *);
 ts_stream_pes *ts_stream_lookup(ts_stream *, int);
 ts_stream_pes *ts_stream_create(ts_stream *, int);
+ssize_t        ts_stream_pack_pat(ts_stream *, ts_units *);
+ssize_t        ts_stream_unpack_pat(ts_stream *, ts_units *);
+ssize_t        ts_stream_pack_pmt(ts_stream *, ts_units *);
+ssize_t        ts_stream_unpack_pmt(ts_stream *, ts_units *);
+
 ssize_t        ts_stream_load(ts_stream *, char *);
 ssize_t        ts_stream_save(ts_stream *, char *);
 

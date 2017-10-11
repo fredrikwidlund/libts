@@ -75,3 +75,17 @@ ssize_t ts_unit_unpack(ts_unit *unit, ts_packet *packet)
   buffer_insert(&unit->data, buffer_size(&unit->data), packet->payload_data, packet->payload_size);
   return 0;
 }
+
+void ts_unit_debug(ts_unit *unit, FILE *f)
+{
+  uint8_t *base = buffer_data(&unit->data);
+  size_t i, size = buffer_size(&unit->data);
+
+  (void) fprintf(f, "[unit pid %d, rai %d", unit->pid, unit->random_access_indicator);
+  if (unit->pcr_flag)
+    (void) fprintf(f, ", pcr %lu", unit->pcr);
+  (void) fprintf(f, "] ");
+  for (i = 0; i < size; i ++)
+    (void) fprintf(f, "%02x%s", base[i], i % 32 == 31 ? "\n" : "");
+  (void) fprintf(f, "\n");
+}

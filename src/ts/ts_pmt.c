@@ -30,6 +30,66 @@ void ts_pmt_destruct(ts_pmt *pmt)
   *pmt = (ts_pmt) {0};
 }
 
+ssize_t ts_pmt_pack_stream(ts_pmt *pmt, stream *s)
+{
+  ts_pmt_stream *pmts;
+  ts_psi psi;
+  ssize_t n;
+  buffer buffer;
+  stream pmt_stream;
+
+  n = ts_psi_pointer_pack(s);
+  if (n == -1)
+    return -1;
+
+  buffer_construct(&buffer);
+  stream_construct_buffer(&pmt_stream, &buffer);
+  stream_write16(&pmt_stream,
+                 stream_write_bits(0x07, 16, 0, 3) |
+                 stream_write_bits(pmt->pcr_pid, 16, 3, 13));
+  stream_write16(&pmt_stream,
+                 stream_write_bits(0x0f, 16, 0, 4) |
+                 stream_write_bits(0, 16, 4, 2) |
+                 stream_write_bits(0, 16, 6, 10));
+  list_foreach(&pmt->streams, pmts)
+    {
+      stream_write8(&pmt_stream, pmts->stream_type);
+      stream_write16(&pmt_stream,
+                     stream_write_bits(0x07, 16, 0, 3) |
+                     stream_write_bits(pmts->elementary_pid, 16, 3, 13));
+      stream_write16(&pmt_stream,
+                     stream_write_bits(0x0f, 16, 0, 4) |
+                     stream_write_bits(0, 16, 4, 2) |
+                     stream_write_bits(0, 16, 6, 10));
+    }
+
+  ts_psi_construct(&psi);
+  psi.id = 0x02;
+  psi.id_extension = 0x01;
+  psi.version = 0;
+  psi.current = 1;
+  psi.section_number = 0;
+  psi.last_section_number = 0;
+  n = ts_psi_pack_stream(&psi, s, &pmt_stream);
+  ts_psi_destruct(&psi);
+  stream_destruct(&pmt_stream);
+  buffer_destruct(&buffer);
+
+  return n;
+}
+
+ssize_t ts_pmt_pack_buffer(ts_pmt *pmt, buffer *buffer)
+{
+  stream stream;
+  ssize_t n;
+
+  stream_construct_buffer(&stream, buffer);
+  n = ts_pmt_pack_stream(pmt, &stream);
+  stream_destruct(&stream);
+
+  return n;
+}
+
 ssize_t ts_pmt_unpack_stream(ts_pmt *pmt, stream *s)
 {
   ts_psi psi;
@@ -46,6 +106,7 @@ ssize_t ts_pmt_unpack_stream(ts_pmt *pmt, stream *s)
   n = ts_psi_construct_stream(&psi, s);
   if (n <= 0)
     return n;
+
   pmt->id = psi.id;
   pmt->id_extension = psi.id_extension;
   pmt->version = psi.version;
@@ -53,7 +114,7 @@ ssize_t ts_pmt_unpack_stream(ts_pmt *pmt, stream *s)
   ts_psi_destruct(&psi);
 
   // remove table syntax section length (5) and crc (4)
-  if (size < 9 || stream_size(s) < size)
+  if (size < 9 || stream_size(s) + 5 < size)
     return -1;
   size -= 9;
 
