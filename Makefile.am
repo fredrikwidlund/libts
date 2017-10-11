@@ -14,7 +14,12 @@ src/ts/ts_adaptation_field.c \
 src/ts/ts_packet.c \
 src/ts/ts_packets.c \
 src/ts/ts_unit.c \
-src/ts/ts_units.c
+src/ts/ts_units.c \
+src/ts/ts_psi.c \
+src/ts/ts_pat.c \
+src/ts/ts_pmt.c \
+src/ts/ts_pes.c \
+src/ts/ts_stream.c
 
 HEADER_FILES = \
 src/ts/ts_pcr.h \
@@ -23,7 +28,12 @@ src/ts/ts_adaptation_field.h \
 src/ts/ts_packet.h \
 src/ts/ts_packets.h \
 src/ts/ts_unit.h \
-src/ts/ts_units.h
+src/ts/ts_units.h \
+src/ts/ts_psi.h \
+src/ts/ts_pat.h \
+src/ts/ts_pmt.h \
+src/ts/ts_pes.h \
+src/ts/ts_stream.h
 
 AUTOMAKE_OPTIONS = subdir-objects
 lib_LTLIBRARIES= libts.la

@@ -10,12 +10,14 @@
 extern "C" {
 #endif
 
+#include <ts/ts_pcr.h>
 #include <ts/ts_ebp.h>
 #include <ts/ts_adaptation_field.h>
 #include <ts/ts_packet.h>
 #include <ts/ts_packets.h>
 #include <ts/ts_unit.h>
 #include <ts/ts_units.h>
+#include <ts/ts_stream.h>
 
 #ifdef __cplusplus
 }
