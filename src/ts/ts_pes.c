@@ -71,7 +71,7 @@ static ssize_t ts_pes_header_pack_stream(ts_pes *pes, stream *s)
 {
   stream_write16(s,
                  stream_write_bits(0x02, 16, 0, 2) |
-                 stream_write_bits(0x01, 16, 5, 1) |
+                 stream_write_bits(pes->data_alignment_indicator, 16, 5, 1) |
                  stream_write_bits(pes->pts_indicator, 16, 8, 1) |
                  stream_write_bits(pes->dts_indicator, 16, 9, 1));
   stream_write8(s, ts_pes_header_size(pes) - 3);
@@ -97,6 +97,7 @@ ssize_t ts_pes_pack_stream(ts_pes *pes, stream *s)
         return -1;
       len = 0;
     }
+
   stream_write16(s, len);
   if (pes->stream_id != 0xbe && pes->stream_id != 0xbf)
     {
