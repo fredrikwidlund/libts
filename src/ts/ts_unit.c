@@ -80,11 +80,16 @@ void ts_unit_debug(ts_unit *unit, FILE *f)
 {
   uint8_t *base = buffer_data(&unit->data);
   size_t i, size = buffer_size(&unit->data);
+  uint32_t s1;
 
-  (void) fprintf(f, "[unit pid %d, rai %d", unit->pid, unit->random_access_indicator);
+  s1 = 0;
+  for (i = 0; i < size; i ++)
+    s1 += base[i];
+
+  (void) fprintf(f, "[unit pid %d, rai %d, sum %08x", unit->pid, unit->random_access_indicator, s1);
   if (unit->pcr_flag)
     (void) fprintf(f, ", pcr %lu", unit->pcr);
-  (void) fprintf(f, "] ");
+  (void) fprintf(f, "]\n");
   for (i = 0; i < size; i ++)
     (void) fprintf(f, "%02x%s", base[i], i % 32 == 31 ? "\n" : "");
   (void) fprintf(f, "\n");

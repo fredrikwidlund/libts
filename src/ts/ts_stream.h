@@ -1,24 +1,37 @@
 #ifndef TS_STREAM_H_INCLUDED
 #define TS_STREAM_H_INCLUDED
 
+typedef struct ts_stream_iterator ts_stream_iterator;
 typedef struct ts_stream_pes ts_stream_pes;
-struct ts_stream_pes
+typedef struct ts_stream ts_stream;
+
+struct ts_stream_iterator
 {
-  int  pid;
-  int  type;
-  list packets;
+  ts_pes        **current;
+  ts_pes        **end;
+  ts_stream_pes  *pes_stream;
 };
 
-typedef struct ts_stream ts_stream;
+struct ts_stream_pes
+{
+  int             pid;
+  uint8_t         type;
+  uint8_t         descriptor_tag;
+  uint8_t         descriptor_size;
+  void           *descriptor_data;
+  list            packets;
+};
+
 struct ts_stream
 {
-  int  program_pid;
-  int  pcr_pid;
-  list streams;
+  int             program_pid;
+  int             pcr_pid;
+  list            streams;
 };
 
 void           ts_stream_pes_construct(ts_stream_pes *);
 void           ts_stream_pes_destruct(ts_stream_pes *);
+void           ts_stream_pes_debug(ts_stream_pes *, FILE *);
 
 void           ts_stream_construct(ts_stream *);
 void           ts_stream_destruct(ts_stream *);
@@ -31,5 +44,6 @@ ssize_t        ts_stream_unpack_pmt(ts_stream *, ts_units *);
 
 ssize_t        ts_stream_load(ts_stream *, char *);
 ssize_t        ts_stream_save(ts_stream *, char *);
+void           ts_stream_debug(ts_stream *, FILE *);
 
 #endif /* TS_STREAM_H_INCLUDED */

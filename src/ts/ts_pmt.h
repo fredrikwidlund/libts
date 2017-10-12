@@ -1,22 +1,35 @@
 #ifndef TS_PMT_H_INCLUDED
 #define TS_PMT_H_INCLUDED
 
+typedef struct ts_pmt_descriptor ts_pmt_descriptor;
+struct ts_pmt_descriptor
+{
+  uint8_t            tag;
+  uint8_t            size;
+  void              *data;
+};
+
 typedef struct ts_pmt_stream ts_pmt_stream;
 struct ts_pmt_stream
 {
-  uint8_t  stream_type;
-  unsigned elementary_pid:13;
+  uint8_t            stream_type;
+  unsigned           elementary_pid:13;
+  ts_pmt_descriptor  descriptor;
 };
 
 typedef struct ts_pmt ts_pmt;
 struct ts_pmt
 {
-  int      id;
-  int      id_extension;
-  int      version;
-  unsigned pcr_pid:13;
-  list     streams;
+  int                id;
+  int                id_extension;
+  int                version;
+  unsigned           pcr_pid:13;
+  ts_pmt_descriptor  descriptor;
+  list               streams;
 };
+
+void    ts_pmt_descriptor_construct(ts_pmt_descriptor *);
+void    ts_pmt_descriptor_destruct(ts_pmt_descriptor *);
 
 void    ts_pmt_construct(ts_pmt *);
 ssize_t ts_pmt_construct_buffer(ts_pmt *, buffer *);

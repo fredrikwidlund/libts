@@ -22,5 +22,6 @@ void    ts_packet_destruct(ts_packet *);
 size_t  ts_packet_size(ts_packet *);
 ssize_t ts_packet_pack(ts_packet *, stream *);
 ssize_t ts_packet_unpack(ts_packet *, stream *);
+void    ts_packet_debug(ts_packet *, FILE *);
 
 #endif /* TS_PACKET_H_INCLUDED */

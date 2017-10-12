@@ -7,9 +7,28 @@
 #include "ts_psi.h"
 #include "ts_pmt.h"
 
+static void ts_pmt_streams_release(void *object)
+{
+  ts_pmt_stream *pmts = object;
+
+  ts_pmt_descriptor_destruct(&pmts->descriptor);
+}
+
+void ts_pmt_descriptor_construct(ts_pmt_descriptor *descriptor)
+{
+  *descriptor = (ts_pmt_descriptor) {0};
+}
+
+void ts_pmt_descriptor_destruct(ts_pmt_descriptor *descriptor)
+{
+  free(descriptor->data);
+  *descriptor = (ts_pmt_descriptor) {0};
+}
+
 void ts_pmt_construct(ts_pmt *pmt)
 {
   *pmt = (ts_pmt) {0};
+  ts_pmt_descriptor_construct(&pmt->descriptor);
   list_construct(&pmt->streams);
 }
 
@@ -26,7 +45,8 @@ ssize_t ts_pmt_construct_buffer(ts_pmt *pmt, buffer *buffer)
 
 void ts_pmt_destruct(ts_pmt *pmt)
 {
-  list_destruct(&pmt->streams, NULL);
+  ts_pmt_descriptor_destruct(&pmt->descriptor);
+  list_destruct(&pmt->streams, ts_pmt_streams_release);
   *pmt = (ts_pmt) {0};
 }
 
@@ -60,7 +80,13 @@ ssize_t ts_pmt_pack_stream(ts_pmt *pmt, stream *s)
       stream_write16(&pmt_stream,
                      stream_write_bits(0x0f, 16, 0, 4) |
                      stream_write_bits(0, 16, 4, 2) |
-                     stream_write_bits(0, 16, 6, 10));
+                     stream_write_bits(pmts->descriptor_size ? pmts->descriptor_size + 2 : 0, 16, 6, 10));
+      if (pmts->descriptor_size)
+        {
+          stream_write8(&pmt_stream, pmts->descriptor_tag);
+          stream_write8(&pmt_stream, pmts->descriptor_size);
+          stream_write(&pmt_stream, pmts->descriptor_data, pmts->descriptor_size);
+        }
     }
 
   ts_psi_construct(&psi);
@@ -129,10 +155,17 @@ ssize_t ts_pmt_unpack_stream(ts_pmt *pmt, stream *s)
     }
   pmt->pcr_pid = stream_read_bits(v, 32, 3, 13);
   len = stream_read_bits(v, 32, 22, 10);
-  stream_read(&data, NULL, len);
+  if (len)
+    {
+      fprintf(stderr, "%d\n", stream_read8(&data));
+      fprintf(stderr, "%d\n", stream_read8(&data));
+      fprintf(stderr, "len %u %.*s\n", len, len, stream_data(&data));
+      stream_read(&data, NULL, len);
+    }
 
   while (stream_size(&data))
     {
+      pmt_stream = (ts_pmt_stream){0};
       pmt_stream.stream_type = stream_read8(&data);
       v = stream_read32(&data);
       if (stream_read_bits(v, 32, 0, 3) != 0x07 ||
@@ -144,7 +177,20 @@ ssize_t ts_pmt_unpack_stream(ts_pmt *pmt, stream *s)
         }
       pmt_stream.elementary_pid = stream_read_bits(v, 32, 3, 13);
       len = stream_read_bits(v, 32, 22, 10);
-      stream_read(&data, NULL, len);
+      if (len)
+        {
+          if (len < 2)
+            {
+              stream_destruct(&data);
+              return -1;
+            }
+          pmt_stream.descriptor_tag = stream_read8(&data);
+          pmt_stream.descriptor_size = stream_read8(&data);
+          pmt_stream.descriptor_data = malloc(pmt_stream.descriptor_size);
+          if (!pmt_stream.descriptor_data)
+            abort();
+          stream_read(&data, pmt_stream.descriptor_data, pmt_stream.descriptor_size);
+        }
       list_push_back(&pmt->streams, &pmt_stream, sizeof pmt_stream);
     }
 

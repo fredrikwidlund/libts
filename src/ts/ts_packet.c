@@ -99,3 +99,31 @@ ssize_t ts_packet_unpack(ts_packet *packet, stream *stream)
 
   return stream_valid(stream) ? 1 : -1;
 }
+
+void ts_packet_debug(ts_packet *packet, FILE *f)
+{
+  uint32_t s1, s2;
+  size_t i;
+  stream stream;
+  buffer buffer;
+
+  s1 = 0;
+  for (i = 0; i < packet->payload_size; i ++)
+    s1 += ((uint8_t *) packet->payload_data)[i];
+
+  buffer_construct(&buffer);
+  stream_construct_buffer(&stream, &buffer);
+  ts_packet_pack(packet, &stream);
+
+  s2 = 0;
+  for (i = 0; i < stream_size(&stream); i ++)
+    s2 += ((uint8_t *) stream_data(&stream))[i];
+
+  stream_destruct(&stream);
+  buffer_destruct(&buffer);
+
+  (void) fprintf(f, "[pid %u, tei %u, pusi %u, prio %u, tsc %u, afc %u, cc %u, size %lu, payload sum %08x, packet sum %08x]\n",
+                 packet->pid, packet->transport_error_indicator, packet->payload_unit_start_indicator,
+                 packet->transport_priority, packet->transport_scrambling_control, packet->adaptation_field_control,
+                 packet->continuity_counter, packet->payload_size, s1, s2);
+}

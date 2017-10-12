@@ -7,18 +7,18 @@
 
 #include "ts_pes.h"
 
-static ssize_t ts_pes_ts_pack(uint64_t *t, stream *s, int pts, int dts)
+static ssize_t ts_pes_ts_pack(uint64_t *t, stream *s, int pts_indicator, int dts_indicator)
 {
   stream_write8(s,
-                stream_write_bits(pts, 8, 2, 1) |
-                stream_write_bits(dts, 8, 3, 1) |
+                stream_write_bits(pts_indicator, 8, 2, 1) |
+                stream_write_bits(dts_indicator, 8, 3, 1) |
                 stream_write_bits(*t >> 30, 8, 4, 3) |
                 stream_write_bits(1, 8, 7, 1));
   stream_write32(s,
                  stream_write_bits(*t >> 15, 32, 0, 15) |
                  stream_write_bits(1, 32, 15, 1) |
                  stream_write_bits(*t, 32, 16, 15) |
-                 stream_write_bits(*t, 32, 31, 1));
+                 stream_write_bits(1, 32, 31, 1));
   return stream_valid(s) ? 1 : -1;
 }
 
@@ -91,13 +91,10 @@ ssize_t ts_pes_pack_stream(ts_pes *pes, stream *s)
                  stream_write_bits(1, 32, 23, 1) |
                  stream_write_bits(pes->stream_id, 32, 24, 8));
   len = ts_pes_header_size(pes) + pes->size;
+  if (pes->stream_id >= 0xe0 && pes->stream_id < 0xf0)
+    len = 0;
   if (len >= 65536)
-    {
-      if (pes->stream_id < 0xe0 || pes->stream_id >= 0xf0)
-        return -1;
-      len = 0;
-    }
-
+    return -1;
   stream_write16(s, len);
   if (pes->stream_id != 0xbe && pes->stream_id != 0xbf)
     {

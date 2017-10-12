@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 
 #include <dynamic.h>
 
@@ -40,7 +41,25 @@ void ts_stream_pes_construct(ts_stream_pes *pes_stream)
 void ts_stream_pes_destruct(ts_stream_pes *pes_stream)
 {
   list_destruct(&pes_stream->packets, ts_stream_pes_packets_release);
+  free(pes_stream->descriptor_data);
   *pes_stream = (ts_stream_pes) {0};
+}
+
+void ts_stream_pes_debug(ts_stream_pes *pes_stream, FILE *f)
+{
+  ts_pes **p;
+  size_t count, size;
+
+  count = 0;
+  size = 0;
+  list_foreach(&pes_stream->packets, p)
+    {
+      count ++;
+      size += (*p)->size;
+    }
+
+  list_foreach(&pes_stream->packets, p)
+    ts_pes_debug(*p, f);
 }
 
 void ts_stream_construct(ts_stream *ts_stream)
@@ -157,8 +176,18 @@ ssize_t ts_stream_pack_pmt(ts_stream *ts_stream, ts_units *units)
   pmt.pcr_pid = ts_stream->pcr_pid ? ts_stream->pcr_pid : 0x1fff;
   list_foreach(&ts_stream->streams, p)
     {
+      pmts = (ts_pmt_stream) {0};
       pmts.stream_type = (*p)->type;
       pmts.elementary_pid = (*p)->pid;
+      pmts.descriptor_tag = (*p)->descriptor_tag;
+      pmts.descriptor_size = (*p)->descriptor_size;
+      if (pmts.descriptor_size)
+        {
+          pmts.descriptor_data = malloc(pmts.descriptor_size);
+          if (!pmts.descriptor_data)
+            abort();
+          memcpy(pmts.descriptor_data, (*p)->descriptor_data, pmts.descriptor_size);
+        }
       list_push_back(&pmt.streams, &pmts, sizeof pmts);
     }
 
@@ -218,6 +247,25 @@ ssize_t ts_stream_unpack_pmt(ts_stream *ts_stream, ts_units *units)
                 ts_pmt_destruct(&pmt);
                 return -1;
               }
+            if (!pes_stream->descriptor_size && s->descriptor_size)
+              {
+                pes_stream->descriptor_tag = s->descriptor_tag;
+                pes_stream->descriptor_size = s->descriptor_size;
+                pes_stream->descriptor_data = malloc(pes_stream->descriptor_size);
+                if (!pes_stream->descriptor_data)
+                  abort();
+                memcpy(pes_stream->descriptor_data, s->descriptor_data, pes_stream->descriptor_size);
+              }
+            if (pes_stream->descriptor_size && s->descriptor_size)
+              {
+                if (pes_stream->descriptor_size != s->descriptor_size ||
+                    pes_stream->descriptor_tag != s->descriptor_tag ||
+                    memcmp(pes_stream->descriptor_data, s->descriptor_data, pes_stream->descriptor_size) != 0)
+                  {
+                    ts_pmt_destruct(&pmt);
+                    return -1;
+                  }
+              }
           }
         ts_pmt_destruct(&pmt);
       }
@@ -227,36 +275,54 @@ ssize_t ts_stream_unpack_pmt(ts_stream *ts_stream, ts_units *units)
 
 ssize_t ts_stream_pack_pes(ts_stream *ts_stream, ts_units *units)
 {
-  ts_stream_pes **p;
-  ts_pes **packet;
+  vector iterators;
+  ts_stream_iterator iterator, *is;
+  ts_stream_pes **s, *pes_stream;
+  ts_pes *pes;
   ts_unit *unit;
-  ssize_t n, count;
+  ssize_t i, i_min, is_count, n, pcr_recorded;
 
-  list_foreach(&ts_stream->streams, p)
+  vector_construct(&iterators, sizeof iterator);
+  list_foreach(&ts_stream->streams, s)
+    vector_push_back(&iterators, (ts_stream_iterator[]){{.current = list_front(&(*s)->packets), .end = list_end(&(*s)->packets), .pes_stream = *s}});
+
+  is = vector_data(&iterators);
+  is_count = vector_size(&iterators);
+  pcr_recorded = 0;
+  while (1)
     {
-      count = 0;
-      list_foreach(&(*p)->packets, packet)
+      i_min = -1;
+      for (i = 0; i < is_count; i ++)
+        if (is[i].current != is[i].end && (*is[i].current)->pts_indicator && (i_min == -1 || (*is[i].current)->pts < (*is[i_min].current)->pts))
+          i_min = i;
+      if (i_min == -1)
+        break;
+
+      pes = *is[i_min].current;
+      pes_stream = is[i_min].pes_stream;
+      is[i_min].current = list_next(is[i_min].current);
+
+      unit = malloc(sizeof *unit);
+      if (!unit)
+        abort();
+      ts_unit_construct(unit, pes_stream->pid, pes->random_access_indicator);
+      if (ts_stream->pcr_pid == pes_stream->pid && !pcr_recorded)
         {
-          unit = malloc(sizeof *unit);
-          if (!unit)
-            abort();
-          ts_unit_construct(unit, (*p)->pid, (*packet)->random_access_indicator);
-          if (ts_stream->pcr_pid == (*p)->pid && count == 0)
-            {
-              unit->pcr_flag = 1;
-              unit->pcr = (*packet)->pts * 300;
-            }
-          n = ts_pes_pack_buffer(*packet, &unit->data);
-          if (n == -1)
-            {
-              ts_unit_destruct(unit);
-              free(unit);
-              return -1;
-            }
-          list_push_back(ts_units_list(units), &unit, sizeof unit);
-          count ++;
+          unit->pcr_flag = 1;
+          unit->pcr = pes->pts * 300;
+          pcr_recorded = 1;
         }
+      n = ts_pes_pack_buffer(pes, &unit->data);
+      if (n == -1)
+        {
+          ts_unit_destruct(unit);
+          free(unit);
+          return -1;
+        }
+      list_push_back(ts_units_list(units), &unit, sizeof unit);
     }
+
+  vector_destruct(&iterators);
 
   return 1;
 }
@@ -353,4 +419,13 @@ ssize_t ts_stream_save(ts_stream *ts_stream, char *path)
   ts_units_destruct(&units);
 
   return n;
+}
+
+void ts_stream_debug(ts_stream *ts_stream, FILE *f)
+{
+  ts_stream_pes **s;
+
+  (void) fprintf(f, "[stream program pid %d, pcr pid %d]\n", ts_stream->program_pid, ts_stream->pcr_pid);
+  list_foreach(&ts_stream->streams, s)
+    ts_stream_pes_debug(*s, f);
 }
