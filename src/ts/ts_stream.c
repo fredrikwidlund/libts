@@ -41,7 +41,7 @@ void ts_stream_pes_construct(ts_stream_pes *pes_stream)
 void ts_stream_pes_destruct(ts_stream_pes *pes_stream)
 {
   list_destruct(&pes_stream->packets, ts_stream_pes_packets_release);
-  free(pes_stream->descriptor_data);
+  ts_pmt_descriptor_destruct(&pes_stream->descriptor);
   *pes_stream = (ts_stream_pes) {0};
 }
 
@@ -65,6 +65,7 @@ void ts_stream_pes_debug(ts_stream_pes *pes_stream, FILE *f)
 void ts_stream_construct(ts_stream *ts_stream)
 {
   *ts_stream = (struct ts_stream) {0};
+  ts_pmt_descriptor_destruct(&ts_stream->descriptor);
   list_construct(&ts_stream->streams);
 }
 
@@ -174,20 +175,13 @@ ssize_t ts_stream_pack_pmt(ts_stream *ts_stream, ts_units *units)
   pmt.id_extension = 1;
   pmt.version = 0;
   pmt.pcr_pid = ts_stream->pcr_pid ? ts_stream->pcr_pid : 0x1fff;
+  ts_pmt_descriptor_copy(&pmt.descriptor, &ts_stream->descriptor);
   list_foreach(&ts_stream->streams, p)
     {
       pmts = (ts_pmt_stream) {0};
       pmts.stream_type = (*p)->type;
       pmts.elementary_pid = (*p)->pid;
-      pmts.descriptor_tag = (*p)->descriptor_tag;
-      pmts.descriptor_size = (*p)->descriptor_size;
-      if (pmts.descriptor_size)
-        {
-          pmts.descriptor_data = malloc(pmts.descriptor_size);
-          if (!pmts.descriptor_data)
-            abort();
-          memcpy(pmts.descriptor_data, (*p)->descriptor_data, pmts.descriptor_size);
-        }
+      ts_pmt_descriptor_copy(&pmts.descriptor, &(*p)->descriptor);
       list_push_back(&pmt.streams, &pmts, sizeof pmts);
     }
 
@@ -247,29 +241,16 @@ ssize_t ts_stream_unpack_pmt(ts_stream *ts_stream, ts_units *units)
                 ts_pmt_destruct(&pmt);
                 return -1;
               }
-            if (!pes_stream->descriptor_size && s->descriptor_size)
+            if (!ts_pmt_descriptor_size(&pes_stream->descriptor) && ts_pmt_descriptor_size(&s->descriptor))
+              ts_pmt_descriptor_copy(&pes_stream->descriptor, &s->descriptor);
+            if (!ts_pmt_descriptor_equal(&pes_stream->descriptor, &s->descriptor))
               {
-                pes_stream->descriptor_tag = s->descriptor_tag;
-                pes_stream->descriptor_size = s->descriptor_size;
-                pes_stream->descriptor_data = malloc(pes_stream->descriptor_size);
-                if (!pes_stream->descriptor_data)
-                  abort();
-                memcpy(pes_stream->descriptor_data, s->descriptor_data, pes_stream->descriptor_size);
-              }
-            if (pes_stream->descriptor_size && s->descriptor_size)
-              {
-                if (pes_stream->descriptor_size != s->descriptor_size ||
-                    pes_stream->descriptor_tag != s->descriptor_tag ||
-                    memcmp(pes_stream->descriptor_data, s->descriptor_data, pes_stream->descriptor_size) != 0)
-                  {
-                    ts_pmt_destruct(&pmt);
-                    return -1;
-                  }
+                ts_pmt_destruct(&pmt);
+                return -1;
               }
           }
         ts_pmt_destruct(&pmt);
       }
-
   return 1;
 }
 
@@ -284,7 +265,8 @@ ssize_t ts_stream_pack_pes(ts_stream *ts_stream, ts_units *units)
 
   vector_construct(&iterators, sizeof iterator);
   list_foreach(&ts_stream->streams, s)
-    vector_push_back(&iterators, (ts_stream_iterator[]){{.current = list_front(&(*s)->packets), .end = list_end(&(*s)->packets), .pes_stream = *s}});
+    vector_push_back(&iterators, (ts_stream_iterator[]){{
+          .current = list_front(&(*s)->packets), .end = list_end(&(*s)->packets), .pes_stream = *s}});
 
   is = vector_data(&iterators);
   is_count = vector_size(&iterators);
@@ -293,7 +275,8 @@ ssize_t ts_stream_pack_pes(ts_stream *ts_stream, ts_units *units)
     {
       i_min = -1;
       for (i = 0; i < is_count; i ++)
-        if (is[i].current != is[i].end && (*is[i].current)->pts_indicator && (i_min == -1 || (*is[i].current)->pts < (*is[i_min].current)->pts))
+        if (is[i].current != is[i].end && (*is[i].current)->pts_indicator &&
+            (i_min == -1 || (*is[i].current)->pts < (*is[i_min].current)->pts))
           i_min = i;
       if (i_min == -1)
         break;

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 
 #include <dynamic.h>
 
@@ -23,6 +24,58 @@ void ts_pmt_descriptor_destruct(ts_pmt_descriptor *descriptor)
 {
   free(descriptor->data);
   *descriptor = (ts_pmt_descriptor) {0};
+}
+
+ssize_t ts_pmt_descriptor_size(ts_pmt_descriptor *descriptor)
+{
+  return descriptor->tag ? descriptor->size + 2 : 0;
+}
+
+ssize_t ts_pmt_descriptor_pack(ts_pmt_descriptor *descriptor, stream *stream)
+{
+  if (descriptor->tag)
+    {
+      stream_write8(stream, descriptor->tag);
+      stream_write8(stream, descriptor->size);
+      stream_write(stream, descriptor->data, descriptor->size);
+    }
+  return stream_valid(stream) ? 1 : -1;
+}
+
+ssize_t ts_pmt_descriptor_unpack(ts_pmt_descriptor *descriptor, stream *stream, size_t len)
+{
+  if (len < 2 || len > stream_size(stream))
+    return -1;
+  descriptor->tag = stream_read8(stream);
+  descriptor->size = stream_read8(stream);
+  if ((size_t) descriptor->size + 2 > len)
+    return -1;
+  descriptor->data = malloc(descriptor->size);
+  if (!descriptor->data)
+    abort();
+  stream_read(stream, descriptor->data, descriptor->size);
+  stream_read(stream, NULL, len - descriptor->size - 2);
+  return stream_valid(stream) ? 1 : -1;
+}
+
+int ts_pmt_descriptor_equal(ts_pmt_descriptor *a, ts_pmt_descriptor *b)
+{
+  return
+    (a->tag == 0 && b->tag == 0) ||
+    (a->tag == b->tag && a->size == b->size && memcmp(a->data, b->data, a->size) == 0);
+}
+
+void ts_pmt_descriptor_copy(ts_pmt_descriptor *dst, ts_pmt_descriptor *src)
+{
+  dst->tag = src->tag;
+  dst->size = src->size;
+  if (dst->size)
+    {
+      dst->data = malloc(dst->size);
+      if (!dst->data)
+        abort();
+      memcpy(dst->data, src->data, dst->size);
+    }
 }
 
 void ts_pmt_construct(ts_pmt *pmt)
@@ -70,7 +123,9 @@ ssize_t ts_pmt_pack_stream(ts_pmt *pmt, stream *s)
   stream_write16(&pmt_stream,
                  stream_write_bits(0x0f, 16, 0, 4) |
                  stream_write_bits(0, 16, 4, 2) |
-                 stream_write_bits(0, 16, 6, 10));
+                 stream_write_bits(ts_pmt_descriptor_size(&pmt->descriptor), 16, 6, 10));
+  if (ts_pmt_descriptor_size(&pmt->descriptor))
+    (void) ts_pmt_descriptor_pack(&pmt->descriptor, &pmt_stream);
   list_foreach(&pmt->streams, pmts)
     {
       stream_write8(&pmt_stream, pmts->stream_type);
@@ -80,13 +135,9 @@ ssize_t ts_pmt_pack_stream(ts_pmt *pmt, stream *s)
       stream_write16(&pmt_stream,
                      stream_write_bits(0x0f, 16, 0, 4) |
                      stream_write_bits(0, 16, 4, 2) |
-                     stream_write_bits(pmts->descriptor_size ? pmts->descriptor_size + 2 : 0, 16, 6, 10));
-      if (pmts->descriptor_size)
-        {
-          stream_write8(&pmt_stream, pmts->descriptor_tag);
-          stream_write8(&pmt_stream, pmts->descriptor_size);
-          stream_write(&pmt_stream, pmts->descriptor_data, pmts->descriptor_size);
-        }
+                     stream_write_bits(ts_pmt_descriptor_size(&pmts->descriptor), 16, 6, 10));
+      if (ts_pmt_descriptor_size(&pmts->descriptor))
+        (void) ts_pmt_descriptor_pack(&pmts->descriptor, &pmt_stream);
     }
 
   ts_psi_construct(&psi);
@@ -121,8 +172,8 @@ ssize_t ts_pmt_unpack_stream(ts_pmt *pmt, stream *s)
   ts_psi psi;
   ts_pmt_stream pmt_stream;
   ssize_t n;
-  size_t size;
-  int v, len, valid;
+  size_t size, len;
+  int v, valid;
   stream data;
 
   n = ts_psi_pointer_unpack(s);
@@ -157,10 +208,12 @@ ssize_t ts_pmt_unpack_stream(ts_pmt *pmt, stream *s)
   len = stream_read_bits(v, 32, 22, 10);
   if (len)
     {
-      fprintf(stderr, "%d\n", stream_read8(&data));
-      fprintf(stderr, "%d\n", stream_read8(&data));
-      fprintf(stderr, "len %u %.*s\n", len, len, stream_data(&data));
-      stream_read(&data, NULL, len);
+      n = ts_pmt_descriptor_unpack(&pmt->descriptor, &data, len);
+      if (n == -1)
+        {
+          stream_destruct(&data);
+          return -1;
+        }
     }
 
   while (stream_size(&data))
@@ -179,17 +232,12 @@ ssize_t ts_pmt_unpack_stream(ts_pmt *pmt, stream *s)
       len = stream_read_bits(v, 32, 22, 10);
       if (len)
         {
-          if (len < 2)
+          n = ts_pmt_descriptor_unpack(&pmt_stream.descriptor, &data, len);
+          if (n == -1)
             {
               stream_destruct(&data);
               return -1;
             }
-          pmt_stream.descriptor_tag = stream_read8(&data);
-          pmt_stream.descriptor_size = stream_read8(&data);
-          pmt_stream.descriptor_data = malloc(pmt_stream.descriptor_size);
-          if (!pmt_stream.descriptor_data)
-            abort();
-          stream_read(&data, pmt_stream.descriptor_data, pmt_stream.descriptor_size);
         }
       list_push_back(&pmt->streams, &pmt_stream, sizeof pmt_stream);
     }

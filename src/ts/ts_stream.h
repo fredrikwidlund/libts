@@ -7,26 +7,25 @@ typedef struct ts_stream ts_stream;
 
 struct ts_stream_iterator
 {
-  ts_pes        **current;
-  ts_pes        **end;
-  ts_stream_pes  *pes_stream;
+  ts_pes            **current;
+  ts_pes            **end;
+  ts_stream_pes      *pes_stream;
 };
 
 struct ts_stream_pes
 {
-  int             pid;
-  uint8_t         type;
-  uint8_t         descriptor_tag;
-  uint8_t         descriptor_size;
-  void           *descriptor_data;
-  list            packets;
+  int                 pid;
+  uint8_t             type;
+  ts_pmt_descriptor   descriptor;
+  list                packets;
 };
 
 struct ts_stream
 {
-  int             program_pid;
-  int             pcr_pid;
-  list            streams;
+  int                 program_pid;
+  int                 pcr_pid;
+  ts_pmt_descriptor   descriptor;
+  list                streams;
 };
 
 void           ts_stream_pes_construct(ts_stream_pes *);

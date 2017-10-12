@@ -12,6 +12,9 @@ extern "C" {
 
 #include <ts/ts_pcr.h>
 #include <ts/ts_ebp.h>
+#include <ts/ts_psi.h>
+#include <ts/ts_pat.h>
+#include <ts/ts_pmt.h>
 #include <ts/ts_adaptation_field.h>
 #include <ts/ts_packet.h>
 #include <ts/ts_packets.h>

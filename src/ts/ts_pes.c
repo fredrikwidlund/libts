@@ -78,7 +78,7 @@ static ssize_t ts_pes_header_pack_stream(ts_pes *pes, stream *s)
   if (pes->pts_indicator)
     ts_pes_ts_pack(&pes->pts, s, pes->pts_indicator, pes->dts_indicator);
   if (pes->dts_indicator)
-    ts_pes_ts_pack(&pes->dts, s, pes->pts_indicator, pes->dts_indicator);
+    ts_pes_ts_pack(&pes->dts, s, 0, pes->dts_indicator);
   return stream_valid(s) ? 1 : -1;
 }
 
@@ -91,7 +91,7 @@ ssize_t ts_pes_pack_stream(ts_pes *pes, stream *s)
                  stream_write_bits(1, 32, 23, 1) |
                  stream_write_bits(pes->stream_id, 32, 24, 8));
   len = ts_pes_header_size(pes) + pes->size;
-  if (pes->stream_id >= 0xe0 && pes->stream_id < 0xf0)
+  if (pes->stream_id >= 0xe0 && pes->stream_id < 0xf0 && len >= 65536)
     len = 0;
   if (len >= 65536)
     return -1;
