@@ -96,6 +96,15 @@ ssize_t ts_packets_unpack(ts_packets *packets, stream *s)
   return stream_valid(s) ? count : -1;
 }
 
+void ts_packets_append(ts_packets *packets, ts_packets *append)
+{
+  ts_packet **i;
+
+  list_foreach(ts_packets_list(append), i)
+    list_push_back(ts_packets_list(packets), i, sizeof *i);
+  list_clear(ts_packets_list(append), NULL);
+}
+
 ssize_t ts_packets_load(ts_packets *packets, char *path)
 {
   buffer b;

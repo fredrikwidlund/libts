@@ -20,6 +20,7 @@ void     ts_packets_destruct(ts_packets *);
 list    *ts_packets_list(ts_packets *);
 ssize_t  ts_packets_pack(ts_packets *, stream *);
 ssize_t  ts_packets_unpack(ts_packets *, stream *);
+void     ts_packets_append(ts_packets *, ts_packets *);
 ssize_t  ts_packets_load(ts_packets *, char *);
 ssize_t  ts_packets_save(ts_packets *, char *);
 
