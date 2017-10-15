@@ -76,6 +76,11 @@ ssize_t ts_unit_unpack(ts_unit *unit, ts_packet *packet)
   return 0;
 }
 
+void ts_unit_compact(ts_unit *unit)
+{
+  buffer_compact(&unit->data);
+}
+
 void ts_unit_debug(ts_unit *unit, FILE *f)
 {
   uint8_t *base = buffer_data(&unit->data);

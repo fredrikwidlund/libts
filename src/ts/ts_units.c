@@ -70,7 +70,10 @@ ssize_t ts_units_unpack(ts_units *units, ts_packets *packets)
       if ((*p)->payload_unit_start_indicator)
         {
           if (u_found)
-            list_erase(u_found, NULL);
+            {
+              ts_unit_compact(*u_found);
+              list_erase(u_found, NULL);
+            }
           unit = malloc(sizeof *unit);
           if (!unit)
             abort();
