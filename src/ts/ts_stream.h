@@ -41,6 +41,8 @@ ssize_t        ts_stream_unpack_pat(ts_stream *, ts_units *);
 ssize_t        ts_stream_pack_pmt(ts_stream *, ts_units *);
 ssize_t        ts_stream_unpack_pmt(ts_stream *, ts_units *);
 
+ssize_t        ts_stream_unpack(ts_stream *, ts_units *);
+ssize_t        ts_stream_pack(ts_stream *, ts_units *);
 ssize_t        ts_stream_load(ts_stream *, char *);
 ssize_t        ts_stream_save(ts_stream *, char *);
 void           ts_stream_debug(ts_stream *, FILE *);
