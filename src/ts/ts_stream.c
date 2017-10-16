@@ -103,6 +103,18 @@ ts_stream_pes *ts_stream_create(ts_stream *ts_stream, int pid)
   return pes_stream;
 }
 
+void ts_stream_delete(ts_stream *ts_stream, int pid)
+{
+  ts_stream_pes **s;
+
+  list_foreach(&ts_stream->streams, s)
+    if ((*s)->pid == pid)
+      {
+        list_erase(s, ts_stream_streams_release);
+        break;
+      }
+}
+
 ssize_t ts_stream_pack_pat(ts_stream *ts_stream, ts_units *units)
 {
   ts_pat pat;
@@ -231,6 +243,7 @@ ssize_t ts_stream_unpack_pmt(ts_stream *ts_stream, ts_units *units)
             ts_pmt_destruct(&pmt);
             return -1;
           }
+
         list_foreach(&pmt.streams, s)
           {
             pes_stream = ts_stream_create(ts_stream, s->elementary_pid);
@@ -315,8 +328,9 @@ ssize_t ts_stream_unpack_pes(ts_stream *ts_stream, ts_units *units)
   ts_stream_pes **p;
   ts_unit **u;
   ts_pes *pes;
-  ssize_t n;
+  ssize_t n, count;
 
+  count = 0;
   list_foreach(&ts_stream->streams, p)
     {
       list_foreach(ts_units_list(units), u)
@@ -332,11 +346,15 @@ ssize_t ts_stream_unpack_pes(ts_stream *ts_stream, ts_units *units)
                 {
                   ts_pes_destruct(pes);
                   free(pes);
-                  return -1;
                 }
-              pes->random_access_indicator = (*u)->random_access_indicator;
-              list_push_back(&(*p)->packets, &pes, sizeof pes);
+              else
+                {
+                  pes->random_access_indicator = (*u)->random_access_indicator;
+                  list_push_back(&(*p)->packets, &pes, sizeof pes);
+                  count ++;
+                }
             }
+          else count ++;
         }
     }
 

@@ -120,7 +120,6 @@ ssize_t ts_pes_unpack_stream(ts_pes *pes, stream *s)
   if (((pes->stream_id < 0xe0 || pes->stream_id >= 0xf0) && len == 0) ||
       (len && len != stream_size(s)))
     return -1;
-
   if (pes->stream_id != 0xbe && pes->stream_id != 0xbf)
     {
       v = stream_read16(s);
