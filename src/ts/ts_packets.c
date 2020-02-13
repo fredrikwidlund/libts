@@ -1,13 +1,64 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include <dynamic.h>
 
+#include "bytestream.h"
 #include "ts_ebp.h"
 #include "ts_adaptation_field.h"
 #include "ts_packet.h"
 #include "ts_packets.h"
+
+static int ts_packets_buffer_load(buffer *b, char *path)
+{
+  int fd;
+  char block[1048576];
+  ssize_t n;
+
+  fd = open(path, O_RDONLY);
+  if (fd == -1)
+    return -1;
+
+  while (1)
+    {
+      n = read(fd, block, sizeof block);
+      if (n <= 0)
+        break;
+      buffer_insert(b, buffer_size(b), block, n);
+    }
+  (void) close(fd);
+
+  return n;
+}
+
+static int ts_packets_buffer_save(buffer *b, char *path)
+{
+  int fd;
+  char *base;
+  size_t size;
+  ssize_t n;
+
+  fd = open(path, O_CREAT | O_WRONLY, 0644);
+  if (fd == -1)
+    return -1;
+
+  base = buffer_data(b);
+  size = buffer_size(b);
+  while (size)
+    {
+      n = write(fd, base, size);
+      if (n == -1)
+        break;
+      base += n;
+      size -= n;
+    }
+  (void) close(fd);
+
+  return size ? -1 : 0;
+}
 
 static ts_packets_counter *ts_packets_lookup_counter(ts_packets *packets, int pid)
 {
@@ -40,7 +91,7 @@ void ts_packets_construct(ts_packets *packets)
 void ts_packets_destruct(ts_packets *packets)
 {
   list_destruct(&packets->list, ts_packets_list_release);
-  vector_destruct(&packets->counters);
+  vector_destruct(&packets->counters, NULL);
 }
 
 list *ts_packets_list(ts_packets *packets)
@@ -48,7 +99,7 @@ list *ts_packets_list(ts_packets *packets)
   return &packets->list;
 }
 
-ssize_t ts_packets_pack(ts_packets *packets, stream *s)
+ssize_t ts_packets_pack(ts_packets *packets, bytestream *s)
 {
   ts_packet **p;
   ssize_t n, count;
@@ -70,13 +121,13 @@ ssize_t ts_packets_pack(ts_packets *packets, stream *s)
   return count;
 }
 
-ssize_t ts_packets_unpack(ts_packets *packets, stream *s)
+ssize_t ts_packets_unpack(ts_packets *packets, bytestream *s)
 {
   ts_packet *packet;
   ssize_t n, count;
 
   count = 0;
-  while (stream_size(s))
+  while (bytestream_size(s))
     {
       packet = malloc(sizeof *packet);
       if (!packet)
@@ -93,7 +144,7 @@ ssize_t ts_packets_unpack(ts_packets *packets, stream *s)
       count ++;
     }
 
-  return stream_valid(s) ? count : -1;
+  return bytestream_valid(s) ? count : -1;
 }
 
 void ts_packets_append(ts_packets *packets, ts_packets *append)
@@ -108,20 +159,20 @@ void ts_packets_append(ts_packets *packets, ts_packets *append)
 ssize_t ts_packets_load(ts_packets *packets, char *path)
 {
   buffer b;
-  stream s;
+  bytestream s;
   int e;
   ssize_t n;
 
   buffer_construct(&b);
-  e = buffer_load(&b, path);
+  e = ts_packets_buffer_load(&b, path);
   if (e == -1)
     {
       buffer_destruct(&b);
       return -1;
     }
-  stream_construct_buffer(&s, &b);
+  bytestream_construct_buffer(&s, &b);
   n = ts_packets_unpack(packets, &s);
-  stream_destruct(&s);
+  bytestream_destruct(&s);
   buffer_destruct(&b);
 
   return n;
@@ -130,15 +181,15 @@ ssize_t ts_packets_load(ts_packets *packets, char *path)
 ssize_t ts_packets_save(ts_packets *packets, char *path)
 {
   buffer b;
-  stream s;
+  bytestream s;
   ssize_t n;
 
   buffer_construct(&b);
-  stream_construct_buffer(&s, &b);
+  bytestream_construct_buffer(&s, &b);
   n = ts_packets_pack(packets, &s);
   if (n >= 0)
-    buffer_save(&b, path);
-  stream_destruct(&s);
+    ts_packets_buffer_save(&b, path);
+  bytestream_destruct(&s);
   buffer_destruct(&b);
 
   return n;

@@ -24,7 +24,7 @@ struct ts_adaptation_field
 void    ts_adaptation_field_construct(ts_adaptation_field *);
 void    ts_adaptation_field_destruct(ts_adaptation_field *);
 size_t  ts_adaptation_field_size(ts_adaptation_field *);
-ssize_t ts_adaptation_field_pack(ts_adaptation_field *, stream *, size_t);
-ssize_t ts_adaptation_field_unpack(ts_adaptation_field *, stream *);
+ssize_t ts_adaptation_field_pack(ts_adaptation_field *, bytestream *, size_t);
+ssize_t ts_adaptation_field_unpack(ts_adaptation_field *, bytestream *);
 
 #endif /* TS_ADAPTATION_FIELD */

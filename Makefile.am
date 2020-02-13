@@ -8,6 +8,7 @@ LICENSE \
 README.rst
 
 SOURCE_FILES = \
+src/ts/bytestream.c \
 src/ts/ts_pcr.c \
 src/ts/ts_ebp.c \
 src/ts/ts_adaptation_field.c \
@@ -22,6 +23,7 @@ src/ts/ts_pes.c \
 src/ts/ts_stream.c
 
 HEADER_FILES = \
+src/ts/bytestream.h \
 src/ts/ts_pcr.h \
 src/ts/ts_ebp.h \
 src/ts/ts_adaptation_field.h \

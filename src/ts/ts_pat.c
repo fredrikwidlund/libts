@@ -4,6 +4,7 @@
 
 #include <dynamic.h>
 
+#include "bytestream.h"
 #include "ts_psi.h"
 #include "ts_pat.h"
 
@@ -28,23 +29,23 @@ void ts_pat_destruct(ts_pat *pat)
   *pat = (ts_pat) {0};
 }
 
-ssize_t ts_pat_pack_stream(ts_pat *pat, stream *s)
+ssize_t ts_pat_pack_stream(ts_pat *pat, bytestream *s)
 {
   ts_psi psi;
   ssize_t n;
   buffer buffer;
-  stream pat_stream;
+  bytestream pat_stream;
 
   n = ts_psi_pointer_pack(s);
   if (n == -1)
     return -1;
 
   buffer_construct(&buffer);
-  stream_construct_buffer(&pat_stream, &buffer);
-  stream_write32(&pat_stream,
-                 stream_write_bits(pat->program_number, 32, 0, 16) |
-                 stream_write_bits(0x07, 32, 16, 3) |
-                 stream_write_bits(pat->program_pid, 32, 19, 13));
+  bytestream_construct_buffer(&pat_stream, &buffer);
+  bytestream_write32(&pat_stream,
+                 bytestream_write_bits(pat->program_number, 32, 0, 16) |
+                 bytestream_write_bits(0x07, 32, 16, 3) |
+                 bytestream_write_bits(pat->program_pid, 32, 19, 13));
   ts_psi_construct(&psi);
   psi.id = 0x00;
   psi.id_extension = 0x01;
@@ -54,7 +55,7 @@ ssize_t ts_pat_pack_stream(ts_pat *pat, stream *s)
   psi.last_section_number = 0;
   n = ts_psi_pack_stream(&psi, s, &pat_stream);
   ts_psi_destruct(&psi);
-  stream_destruct(&pat_stream);
+  bytestream_destruct(&pat_stream);
   buffer_destruct(&buffer);
 
   return n;
@@ -62,17 +63,17 @@ ssize_t ts_pat_pack_stream(ts_pat *pat, stream *s)
 
 ssize_t ts_pat_pack_buffer(ts_pat *pat, buffer *buffer)
 {
-  stream stream;
+  bytestream stream;
   ssize_t n;
 
-  stream_construct_buffer(&stream, buffer);
+  bytestream_construct_buffer(&stream, buffer);
   n = ts_pat_pack_stream(pat, &stream);
-  stream_destruct(&stream);
+  bytestream_destruct(&stream);
 
   return n;
 }
 
-ssize_t ts_pat_unpack_stream(ts_pat *pat, stream *stream)
+ssize_t ts_pat_unpack_stream(ts_pat *pat, bytestream *stream)
 {
   ts_psi psi;
   ssize_t n;
@@ -89,27 +90,27 @@ ssize_t ts_pat_unpack_stream(ts_pat *pat, stream *stream)
   pat->id_extension = psi.id_extension;
   pat->version = psi.version;
   ts_psi_destruct(&psi);
-  v = stream_read32(stream);
-  if (stream_read_bits(v, 32, 16, 3) != 0x07)
+  v = bytestream_read32(stream);
+  if (bytestream_read_bits(v, 32, 16, 3) != 0x07)
     return -1;
-  pat->program_number = stream_read_bits(v, 32, 0, 16);
-  pat->program_pid = stream_read_bits(v, 32, 19, 13);
+  pat->program_number = bytestream_read_bits(v, 32, 0, 16);
+  pat->program_pid = bytestream_read_bits(v, 32, 19, 13);
 
-  (void) stream_read32(stream);
+  (void) bytestream_read32(stream);
   if (pat->id != 0x00)
     return -1;
 
-  return stream_valid(stream) ? 1 : -1;
+  return bytestream_valid(stream) ? 1 : -1;
 }
 
 ssize_t ts_pat_unpack_buffer(ts_pat *pat, buffer *buffer)
 {
-  stream stream;
+  bytestream stream;
   ssize_t n;
 
-  stream_construct_buffer(&stream, buffer);
+  bytestream_construct_buffer(&stream, buffer);
   n = ts_pat_unpack_stream(pat, &stream);
-  stream_destruct(&stream);
+  bytestream_destruct(&stream);
 
   return n;
 }

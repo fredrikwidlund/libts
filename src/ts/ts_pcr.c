@@ -6,25 +6,27 @@
 
 #include <dynamic.h>
 
-ssize_t ts_pcr_pack(uint64_t *value, stream *stream)
+#include "bytestream.h"
+
+ssize_t ts_pcr_pack(uint64_t *value, bytestream *stream)
 {
   uint64_t base, ext, v;
 
   base = *value / 300;
   ext = *value - (base * 300);
   v = (base << 15) + (ext & 0x1ff);
-  stream_write32(stream, v >> 16);
-  stream_write16(stream, v);
+  bytestream_write32(stream, v >> 16);
+  bytestream_write16(stream, v);
 
-  return stream_valid(stream) ? 1 : -1;
+  return bytestream_valid(stream) ? 1 : -1;
 }
 
-ssize_t ts_pcr_unpack(uint64_t *value, stream *stream)
+ssize_t ts_pcr_unpack(uint64_t *value, bytestream *stream)
 {
   uint64_t v;
 
-  v = ((uint64_t) stream_read32(stream) << 16) + stream_read16(stream);
-  *value = (stream_read_bits(v, 48, 0, 33) * 300) + stream_read_bits(v, 48, 39, 9);
+  v = ((uint64_t) bytestream_read32(stream) << 16) + bytestream_read16(stream);
+  *value = (bytestream_read_bits(v, 48, 0, 33) * 300) + bytestream_read_bits(v, 48, 39, 9);
 
-  return stream_valid(stream) ? 1 : -1;
+  return bytestream_valid(stream) ? 1 : -1;
 }

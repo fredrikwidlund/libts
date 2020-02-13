@@ -10,6 +10,7 @@
 extern "C" {
 #endif
 
+#include <ts/bytestream.h>
 #include <ts/ts_pcr.h>
 #include <ts/ts_ebp.h>
 #include <ts/ts_psi.h>

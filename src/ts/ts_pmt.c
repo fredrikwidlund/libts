@@ -5,6 +5,7 @@
 
 #include <dynamic.h>
 
+#include "bytestream.h"
 #include "ts_psi.h"
 #include "ts_pmt.h"
 
@@ -31,31 +32,31 @@ ssize_t ts_pmt_descriptor_size(ts_pmt_descriptor *descriptor)
   return descriptor->tag ? descriptor->size + 2 : 0;
 }
 
-ssize_t ts_pmt_descriptor_pack(ts_pmt_descriptor *descriptor, stream *stream)
+ssize_t ts_pmt_descriptor_pack(ts_pmt_descriptor *descriptor, bytestream *stream)
 {
   if (descriptor->tag)
     {
-      stream_write8(stream, descriptor->tag);
-      stream_write8(stream, descriptor->size);
-      stream_write(stream, descriptor->data, descriptor->size);
+      bytestream_write8(stream, descriptor->tag);
+      bytestream_write8(stream, descriptor->size);
+      bytestream_write(stream, descriptor->data, descriptor->size);
     }
-  return stream_valid(stream) ? 1 : -1;
+  return bytestream_valid(stream) ? 1 : -1;
 }
 
-ssize_t ts_pmt_descriptor_unpack(ts_pmt_descriptor *descriptor, stream *stream, size_t len)
+ssize_t ts_pmt_descriptor_unpack(ts_pmt_descriptor *descriptor, bytestream *stream, size_t len)
 {
-  if (len < 2 || len > stream_size(stream))
+  if (len < 2 || len > bytestream_size(stream))
     return -1;
-  descriptor->tag = stream_read8(stream);
-  descriptor->size = stream_read8(stream);
+  descriptor->tag = bytestream_read8(stream);
+  descriptor->size = bytestream_read8(stream);
   if ((size_t) descriptor->size + 2 > len)
     return -1;
   descriptor->data = malloc(descriptor->size);
   if (!descriptor->data)
     abort();
-  stream_read(stream, descriptor->data, descriptor->size);
-  stream_read(stream, NULL, len - descriptor->size - 2);
-  return stream_valid(stream) ? 1 : -1;
+  bytestream_read(stream, descriptor->data, descriptor->size);
+  bytestream_read(stream, NULL, len - descriptor->size - 2);
+  return bytestream_valid(stream) ? 1 : -1;
 }
 
 int ts_pmt_descriptor_equal(ts_pmt_descriptor *a, ts_pmt_descriptor *b)
@@ -103,39 +104,39 @@ void ts_pmt_destruct(ts_pmt *pmt)
   *pmt = (ts_pmt) {0};
 }
 
-ssize_t ts_pmt_pack_stream(ts_pmt *pmt, stream *s)
+ssize_t ts_pmt_pack_stream(ts_pmt *pmt, bytestream *s)
 {
   ts_pmt_stream *pmts;
   ts_psi psi;
   ssize_t n;
   buffer buffer;
-  stream pmt_stream;
+  bytestream pmt_stream;
 
   n = ts_psi_pointer_pack(s);
   if (n == -1)
     return -1;
 
   buffer_construct(&buffer);
-  stream_construct_buffer(&pmt_stream, &buffer);
-  stream_write16(&pmt_stream,
-                 stream_write_bits(0x07, 16, 0, 3) |
-                 stream_write_bits(pmt->pcr_pid, 16, 3, 13));
-  stream_write16(&pmt_stream,
-                 stream_write_bits(0x0f, 16, 0, 4) |
-                 stream_write_bits(0, 16, 4, 2) |
-                 stream_write_bits(ts_pmt_descriptor_size(&pmt->descriptor), 16, 6, 10));
+  bytestream_construct_buffer(&pmt_stream, &buffer);
+  bytestream_write16(&pmt_stream,
+                 bytestream_write_bits(0x07, 16, 0, 3) |
+                 bytestream_write_bits(pmt->pcr_pid, 16, 3, 13));
+  bytestream_write16(&pmt_stream,
+                 bytestream_write_bits(0x0f, 16, 0, 4) |
+                 bytestream_write_bits(0, 16, 4, 2) |
+                 bytestream_write_bits(ts_pmt_descriptor_size(&pmt->descriptor), 16, 6, 10));
   if (ts_pmt_descriptor_size(&pmt->descriptor))
     (void) ts_pmt_descriptor_pack(&pmt->descriptor, &pmt_stream);
   list_foreach(&pmt->streams, pmts)
     {
-      stream_write8(&pmt_stream, pmts->stream_type);
-      stream_write16(&pmt_stream,
-                     stream_write_bits(0x07, 16, 0, 3) |
-                     stream_write_bits(pmts->elementary_pid, 16, 3, 13));
-      stream_write16(&pmt_stream,
-                     stream_write_bits(0x0f, 16, 0, 4) |
-                     stream_write_bits(0, 16, 4, 2) |
-                     stream_write_bits(ts_pmt_descriptor_size(&pmts->descriptor), 16, 6, 10));
+      bytestream_write8(&pmt_stream, pmts->stream_type);
+      bytestream_write16(&pmt_stream,
+                     bytestream_write_bits(0x07, 16, 0, 3) |
+                     bytestream_write_bits(pmts->elementary_pid, 16, 3, 13));
+      bytestream_write16(&pmt_stream,
+                     bytestream_write_bits(0x0f, 16, 0, 4) |
+                     bytestream_write_bits(0, 16, 4, 2) |
+                     bytestream_write_bits(ts_pmt_descriptor_size(&pmts->descriptor), 16, 6, 10));
       if (ts_pmt_descriptor_size(&pmts->descriptor))
         (void) ts_pmt_descriptor_pack(&pmts->descriptor, &pmt_stream);
     }
@@ -149,7 +150,7 @@ ssize_t ts_pmt_pack_stream(ts_pmt *pmt, stream *s)
   psi.last_section_number = 0;
   n = ts_psi_pack_stream(&psi, s, &pmt_stream);
   ts_psi_destruct(&psi);
-  stream_destruct(&pmt_stream);
+  bytestream_destruct(&pmt_stream);
   buffer_destruct(&buffer);
 
   return n;
@@ -157,24 +158,24 @@ ssize_t ts_pmt_pack_stream(ts_pmt *pmt, stream *s)
 
 ssize_t ts_pmt_pack_buffer(ts_pmt *pmt, buffer *buffer)
 {
-  stream stream;
+  bytestream stream;
   ssize_t n;
 
-  stream_construct_buffer(&stream, buffer);
+  bytestream_construct_buffer(&stream, buffer);
   n = ts_pmt_pack_stream(pmt, &stream);
-  stream_destruct(&stream);
+  bytestream_destruct(&stream);
 
   return n;
 }
 
-ssize_t ts_pmt_unpack_stream(ts_pmt *pmt, stream *s)
+ssize_t ts_pmt_unpack_stream(ts_pmt *pmt, bytestream *s)
 {
   ts_psi psi;
   ts_pmt_stream pmt_stream;
   ssize_t n;
   size_t size, len;
   int v, valid;
-  stream data;
+  bytestream data;
 
   n = ts_psi_pointer_unpack(s);
   if (n <= 0)
@@ -191,59 +192,59 @@ ssize_t ts_pmt_unpack_stream(ts_pmt *pmt, stream *s)
   ts_psi_destruct(&psi);
 
   // remove table syntax section length (5) and crc (4)
-  if (size < 9 || stream_size(s) + 5 < size)
+  if (size < 9 || bytestream_size(s) + 5 < size)
     return -1;
   size -= 9;
 
-  stream_construct(&data, stream_data(s), size);
-  v = stream_read32(&data);
-  if (stream_read_bits(v, 32, 0, 3) != 0x07 ||
-      stream_read_bits(v, 32, 16, 4) != 0x0f ||
-      stream_read_bits(v, 32, 20, 2) != 0x00)
+  bytestream_construct(&data, bytestream_data(s), size);
+  v = bytestream_read32(&data);
+  if (bytestream_read_bits(v, 32, 0, 3) != 0x07 ||
+      bytestream_read_bits(v, 32, 16, 4) != 0x0f ||
+      bytestream_read_bits(v, 32, 20, 2) != 0x00)
     {
-      stream_destruct(&data);
+      bytestream_destruct(&data);
       return -1;
     }
-  pmt->pcr_pid = stream_read_bits(v, 32, 3, 13);
-  len = stream_read_bits(v, 32, 22, 10);
+  pmt->pcr_pid = bytestream_read_bits(v, 32, 3, 13);
+  len = bytestream_read_bits(v, 32, 22, 10);
   if (len)
     {
       n = ts_pmt_descriptor_unpack(&pmt->descriptor, &data, len);
       if (n == -1)
         {
-          stream_destruct(&data);
+          bytestream_destruct(&data);
           return -1;
         }
     }
 
-  while (stream_size(&data))
+  while (bytestream_size(&data))
     {
       pmt_stream = (ts_pmt_stream){0};
-      pmt_stream.stream_type = stream_read8(&data);
-      v = stream_read32(&data);
-      if (stream_read_bits(v, 32, 0, 3) != 0x07 ||
-          stream_read_bits(v, 32, 16, 4) != 0x0f ||
-          stream_read_bits(v, 32, 20, 2) != 0x00)
+      pmt_stream.stream_type = bytestream_read8(&data);
+      v = bytestream_read32(&data);
+      if (bytestream_read_bits(v, 32, 0, 3) != 0x07 ||
+          bytestream_read_bits(v, 32, 16, 4) != 0x0f ||
+          bytestream_read_bits(v, 32, 20, 2) != 0x00)
         {
-          stream_destruct(&data);
+          bytestream_destruct(&data);
           return -1;
         }
-      pmt_stream.elementary_pid = stream_read_bits(v, 32, 3, 13);
-      len = stream_read_bits(v, 32, 22, 10);
+      pmt_stream.elementary_pid = bytestream_read_bits(v, 32, 3, 13);
+      len = bytestream_read_bits(v, 32, 22, 10);
       if (len)
         {
           n = ts_pmt_descriptor_unpack(&pmt_stream.descriptor, &data, len);
           if (n == -1)
             {
-              stream_destruct(&data);
+              bytestream_destruct(&data);
               return -1;
             }
         }
       list_push_back(&pmt->streams, &pmt_stream, sizeof pmt_stream);
     }
 
-  valid = stream_valid(&data);
-  stream_destruct(&data);
+  valid = bytestream_valid(&data);
+  bytestream_destruct(&data);
   if (!valid || pmt->id != 0x02)
     return -1;
 
@@ -252,12 +253,12 @@ ssize_t ts_pmt_unpack_stream(ts_pmt *pmt, stream *s)
 
 ssize_t ts_pmt_unpack_buffer(ts_pmt *pmt, buffer *buffer)
 {
-  stream stream;
+  bytestream stream;
   ssize_t n;
 
-  stream_construct_buffer(&stream, buffer);
+  bytestream_construct_buffer(&stream, buffer);
   n = ts_pmt_unpack_stream(pmt, &stream);
-  stream_destruct(&stream);
+  bytestream_destruct(&stream);
 
   return n;
 }
@@ -269,5 +270,5 @@ void ts_pmt_debug(ts_pmt *pmt, FILE *f)
   (void) fprintf(f, "[pmt] id 0x%02x, id extension 0x%02x, version %d, pcr pid %d\n",
                  pmt->id, pmt->id_extension, pmt->version, pmt->pcr_pid);
   list_foreach(&pmt->streams, i)
-    (void) fprintf(f, "[pmt stream] stream_type %d, elementary pid %d\n", i->stream_type, i->elementary_pid);
+    (void) fprintf(f, "[pmt stream] bytestream_type %d, elementary pid %d\n", i->stream_type, i->elementary_pid);
 }

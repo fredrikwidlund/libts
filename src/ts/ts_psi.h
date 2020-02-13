@@ -14,11 +14,11 @@ struct ts_psi
 };
 
 void    ts_psi_construct(ts_psi *);
-ssize_t ts_psi_construct_stream(ts_psi *, stream *);
+ssize_t ts_psi_construct_stream(ts_psi *, bytestream *);
 void    ts_psi_destruct(ts_psi *);
-ssize_t ts_psi_pack_stream(ts_psi *, stream *, stream *);
-ssize_t ts_psi_unpack_stream(ts_psi *, stream *);
-ssize_t ts_psi_pointer_pack(stream *);
-ssize_t ts_psi_pointer_unpack(stream *);
+ssize_t ts_psi_pack_stream(ts_psi *, bytestream *, bytestream *);
+ssize_t ts_psi_unpack_stream(ts_psi *, bytestream *);
+ssize_t ts_psi_pointer_pack(bytestream *);
+ssize_t ts_psi_pointer_unpack(bytestream *);
 
 #endif /* TS_PSI_H_INCLUDED */

@@ -11,7 +11,7 @@ struct ts_ebp
 
 void    ts_ebp_construct(ts_ebp *);
 void    ts_ebp_destruct(ts_ebp *);
-ssize_t ts_ebp_unpack(ts_ebp *, stream *);
+ssize_t ts_ebp_unpack(ts_ebp *, bytestream *);
 
 #endif /* TS_EBP_H_INCLUDED */
 

@@ -5,6 +5,7 @@
 
 #include <dynamic.h>
 
+#include "bytestream.h"
 #include "ts_ebp.h"
 #include "ts_adaptation_field.h"
 #include "ts_packet.h"
@@ -318,7 +319,7 @@ ssize_t ts_stream_pack_pes(ts_stream *ts_stream, ts_units *units)
       list_push_back(ts_units_list(units), &unit, sizeof unit);
     }
 
-  vector_destruct(&iterators);
+  vector_destruct(&iterators, NULL);
 
   return 1;
 }

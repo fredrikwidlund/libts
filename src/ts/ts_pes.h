@@ -22,9 +22,9 @@ struct ts_pes
 void    ts_pes_construct(ts_pes *);
 ssize_t ts_pes_construct_buffer(ts_pes *, buffer *);
 void    ts_pes_destruct(ts_pes *);
-ssize_t ts_pes_unpack_stream(ts_pes *, stream *);
+ssize_t ts_pes_unpack_stream(ts_pes *, bytestream *);
 ssize_t ts_pes_unpack_buffer(ts_pes *, buffer *);
-ssize_t ts_pes_pack_stream(ts_pes *, stream *);
+ssize_t ts_pes_pack_stream(ts_pes *, bytestream *);
 ssize_t ts_pes_pack_buffer(ts_pes *, buffer *);
 void    ts_pes_debug(ts_pes *, FILE *);
 

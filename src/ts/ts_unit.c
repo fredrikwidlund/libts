@@ -6,6 +6,7 @@
 
 #include <dynamic.h>
 
+#include "bytestream.h"
 #include "ts_ebp.h"
 #include "ts_adaptation_field.h"
 #include "ts_packet.h"
