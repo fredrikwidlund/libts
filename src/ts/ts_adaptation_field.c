@@ -27,7 +27,8 @@ void ts_adaptation_field_destruct(ts_adaptation_field *af)
 size_t ts_adaptation_field_size(ts_adaptation_field *af)
 {
   return 2 + (af->pcr_flag ? 6 : 0) + (af->opcr_flag ? 6 : 0) + (af->splicing_point_flag ? 1 : 0) +
-    (af->transport_private_data_flag ? af->private_size + 1 : 0);
+    (af->transport_private_data_flag ? af->private_size + 1 : 0) +
+    (af->ebp.marker ? 15 : 0);
 }
 
 ssize_t ts_adaptation_field_pack(ts_adaptation_field *af, bytestream *stream, size_t size)
@@ -55,7 +56,16 @@ ssize_t ts_adaptation_field_pack(ts_adaptation_field *af, bytestream *stream, si
   if (af->splicing_point_flag)
     bytestream_write8(stream, af->splice_countdown);
 
-  if (af->private_size)
+  if (af->ebp.marker)
+    {
+      bytestream_write8(stream, 15);
+      bytestream_write8(stream, 0xdf);
+      bytestream_write8(stream, 13);
+      bytestream_write(stream, "EBP0", 4);
+      bytestream_write8(stream, 0x08);
+      bytestream_write64(stream, af->ebp.time);
+    }
+  else if (af->private_size)
     {
       bytestream_write8(stream, af->private_size);
       bytestream_write(stream, af->private_data, af->private_size);

@@ -123,6 +123,8 @@ void ts_packet_debug(ts_packet *packet, FILE *f)
   bytestream_destruct(&stream);
   buffer_destruct(&buffer);
 
+  if (packet->adaptation_field.ebp.marker)
+    (void) fprintf(f, "[ebp marker %lu]\n", packet->adaptation_field.ebp.time);
   (void) fprintf(f, "[pid %u, tei %u, pusi %u, prio %u, tsc %u, afc %u, cc %u, size %lu, payload sum %08x, packet sum %08x]\n",
                  packet->pid, packet->transport_error_indicator, packet->payload_unit_start_indicator,
                  packet->transport_priority, packet->transport_scrambling_control, packet->adaptation_field_control,

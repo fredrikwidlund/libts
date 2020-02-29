@@ -39,6 +39,5 @@ ssize_t ts_ebp_unpack(ts_ebp *ebp, bytestream *s)
     (void) bytestream_read16(s);
   if (flags & 0x08)
     ebp->time = bytestream_read64(s);
-
   return bytestream_valid(s) ? 1 : -1;
 }
